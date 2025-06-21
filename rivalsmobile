@@ -1,0 +1,360 @@
+-- Mobile-compatible Roblox exploit script for Delta/Codex executors
+local Players = game:GetService("Players")
+local RunService = game:GetService("RunService")
+local UserInputService = game:GetService("UserInputService")
+local ReplicatedStorage = game:GetService("ReplicatedStorage")
+local HttpService = game:GetService("HttpService")
+local LocalPlayer = Players.LocalPlayer
+local Workspace = game:GetService("Workspace")
+
+local function getCamera()
+    local cam = Workspace.CurrentCamera
+    if not cam then
+        repeat task.wait(0.1) cam = Workspace.CurrentCamera until cam
+    end
+    return cam
+end
+
+local Camera = getCamera()
+local LocalCharacter = LocalPlayer.Character or LocalPlayer.CharacterAdded:Wait()
+LocalPlayer.CharacterAdded:Connect(function(char)
+    LocalCharacter = char
+    for player, elements in pairs(espElements) do
+        if elements then
+            for _, obj in pairs(elements) do
+                if obj and obj.Remove then obj:Remove() end
+            end
+        end
+        espElements[player] = nil
+    end
+end)
+
+local Utility = require(ReplicatedStorage.Modules.Utility)
+
+local esp_enabled = true
+local box_color = Color3.fromRGB(255, 255, 255)
+local name_color = Color3.fromRGB(255, 255, 255)
+local hp_color = Color3.fromRGB(0, 255, 0)
+local team_color = Color3.fromRGB(0, 0, 255)
+local esp_max_distance = 1000
+local espElements = {}
+local esp_team_check = true
+local esp_visible_check = false
+
+local aimbot_enabled = false
+local aimbot_key_code = Enum.UserInputType.MouseButton2
+local aimbot_aim_part = "Head"
+local aimbot_fov_size = 100
+local aimbot_smoothness = 1
+local show_fov_circle = true
+local aimbot_held = false
+local aimbot_max_distance = 1000
+local aimbot_target_method = "Distance"
+local aimbot_team_check = true
+local aimbot_visible_check = false
+
+local silent_aim_enabled = false
+local silent_aim_key_code = Enum.UserInputType.MouseButton1
+local silent_aim_fov = 100
+local silent_aim_part = "Head"
+local silent_aim_hit_chance = 100
+local silent_aim_max_distance = 1000
+local silent_aim_held = false
+local silent_aim_target_method = "Distance"
+local silent_aim_team_check = true
+local silent_aim_visible_check = false
+
+local aimPartMapping = {
+    Head = {"Head", "HumanoidRootPart"},
+    UpperTorso = {"UpperTorso", "HumanoidRootPart"},
+    LowerTorso = {"LowerTorso", "HumanoidRootPart"},
+    HumanoidRootPart = {"HumanoidRootPart"}
+}
+
+local function areOnSameTeam(player1, player2)
+    if not player1 or not player2 then return false end
+    local team1, team2 = player1.Team, player2.Team
+    local teamAttr1 = player1:GetAttribute("Team") or (player1:FindFirstChild("Leaderstats") and player1.Leaderstats:FindFirstChild("Team") and player1.Leaderstats.Team.Value)
+    local teamAttr2 = player2:GetAttribute("Team") or (player2:FindFirstChild("Leaderstats") and player2.Leaderstats:FindFirstChild("Team") and player2.Leaderstats.Team.Value)
+    if team1 and team2 and team1 == team2 then return true end
+    if teamAttr1 and teamAttr2 and teamAttr1 == teamAttr2 then return true end
+    return false
+end
+
+local function getValidAimPart(character, aimPart)
+    if not character then return nil end
+    local possibleParts = aimPartMapping[aimPart] or {aimPart}
+    for _, partName in ipairs(possibleParts) do
+        local part = character:FindFirstChild(partName)
+        if part then return part end
+    end
+    return character:FindFirstChild("HumanoidRootPart")
+end
+
+local function getDistance(pos1, pos2)
+    return (pos1 - pos2).Magnitude
+end
+
+local function isVisible(origin, targetPosition, targetCharacter)
+    if not origin or not targetPosition or not targetCharacter then return false end
+    local rayParams = RaycastParams.new()
+    rayParams.FilterType = Enum.RaycastFilterType.Blacklist
+    local filter = {LocalPlayer.Character}
+    if LocalPlayer.Character then
+        for _, descendant in ipairs(LocalPlayer.Character:GetDescendants()) do
+            if descendant:IsA("BasePart") then table.insert(filter, descendant) end
+        end
+    end
+    for _, part in ipairs(targetCharacter:GetDescendants()) do
+        if part:IsA("BasePart") and part.Transparency >= 0.9 then table.insert(filter, part) end
+    end
+    rayParams.FilterDescendantsInstances = filter
+    rayParams.IgnoreWater = true
+    rayParams.RespectCanCollide = true
+    local direction = (targetPosition - origin).Unit * (targetPosition - origin).Magnitude
+    local result = Workspace:Raycast(origin, direction, rayParams)
+    if result and result.Instance:IsDescendantOf(targetCharacter) then return true end
+    if result and result.Instance.Transparency < 0.9 then return false end
+    return true
+end
+
+local fovCircleCreated = false
+local fovCircle
+
+local function createFOVCircle()
+    if not fovCircleCreated then
+        fovCircle = Drawing.new("Circle")
+        fovCircle.Color = Color3.fromRGB(255, 0, 0)
+        fovCircle.Thickness = 2
+        fovCircle.Filled = false
+        fovCircle.Transparency = 1
+        fovCircle.Radius = math.max(aimbot_fov_size, silent_aim_fov)
+        fovCircle.Visible = false
+        fovCircleCreated = true
+    end
+end
+
+createFOVCircle()
+
+-- Mobile input handling (simplified for executor compatibility)
+UserInputService.InputBegan:Connect(function(input, processed)
+    if processed then return end
+    if input.UserInputType == aimbot_key_code then aimbot_held = true end
+    if input.UserInputType == silent_aim_key_code then silent_aim_held = true end
+end)
+
+UserInputService.InputEnded:Connect(function(input)
+    if input.UserInputType == aimbot_key_code then aimbot_held = false end
+    if input.UserInputType == silent_aim_key_code then silent_aim_held = false end
+end)
+
+-- ESP Logic with delta time
+RunService.RenderStepped:Connect(function(deltaTime)
+    Camera = getCamera()
+    if not esp_enabled or not Camera or not LocalCharacter then
+        for _, elements in pairs(espElements or {}) do
+            for _, obj in pairs(elements or {}) do
+                obj.Visible = false
+            end
+        end
+        return
+    end
+
+    local localRootPart = LocalCharacter:FindFirstChild("HumanoidRootPart")
+    if not localRootPart then return end
+    local localTeam = LocalPlayer.Team
+    local localTeamName = localTeam and localTeam.Name or nil
+    local localTeamColor = localTeam and localTeam.TeamColor or nil
+    local localTeamAttribute = LocalPlayer:GetAttribute("Team") or (LocalPlayer:FindFirstChild("Leaderstats") and LocalPlayer.Leaderstats:FindFirstChild("Team") and LocalPlayer.Leaderstats.Team.Value) or nil
+    local localTeamChar = LocalCharacter:FindFirstChild("Team") and LocalCharacter.Team.Value or nil
+    local localTeamWorkspace = Workspace:FindFirstChild("Teams") and Workspace.Teams:FindFirstChild(LocalPlayer.Name) and Workspace.Teams[LocalPlayer.Name].Value
+    local localAttributes = {}
+    local success, attrs = pcall(function() return LocalPlayer:GetAttributes() end)
+    if success then
+        for k, v in pairs(attrs) do
+            if type(v) == "string" or type(v) == "number" or type(v) == "boolean" then
+                localAttributes[k] = v
+            end
+        end
+    end
+
+    for _, player in pairs(Players:GetPlayers()) do
+        if player ~= LocalPlayer and player.Character and player.Character:FindFirstChild("HumanoidRootPart") then
+            local character = player.Character
+            local rootPart = character:FindFirstChild("HumanoidRootPart")
+            local humanoid = character:FindFirstChild("Humanoid")
+            if rootPart and humanoid then
+                local distance = getDistance(Camera.CFrame.Position, rootPart.Position)
+                if distance > esp_max_distance then
+                    if espElements[player] then
+                        for _, obj in pairs(espElements[player] or {}) do
+                            obj.Visible = false
+                        end
+                    end
+                    continue
+                end
+
+                local isTeammate = esp_team_check and areOnSameTeam(LocalPlayer, player)
+                if esp_team_check and isTeammate then
+                    if espElements[player] then
+                        for _, obj in pairs(espElements[player] or {}) do
+                            obj.Visible = false
+                        end
+                    end
+                    continue
+                end
+
+                if esp_visible_check and not isVisible(Camera.CFrame.Position, rootPart.Position, character) then
+                    if espElements[player] then
+                        for _, obj in pairs(espElements[player] or {}) do
+                            obj.Visible = false
+                        end
+                    end
+                    continue
+                end
+
+                if not espElements[player] then
+                    local box = Drawing.new("Square")
+                    local nameLabel = Drawing.new("Text")
+                    local hpBar = Drawing.new("Square")
+                    box.Thickness = 2
+                    box.Filled = false
+                    box.Transparency = 1
+                    box.ZIndex = 1
+                    nameLabel.Size = 18
+                    nameLabel.Center = true
+                    nameLabel.Outline = true
+                    nameLabel.Transparency = 1
+                    nameLabel.ZIndex = 3
+                    hpBar.Filled = true
+                    hpBar.Transparency = 1
+                    hpBar.ZIndex = 2
+                    espElements[player] = {box, nameLabel, hpBar}
+                end
+
+                local box, nameLabel, hpBar = unpack(espElements[player])
+                local screenPos, onScreen = Camera:WorldToViewportPoint(rootPart.Position)
+                if onScreen then
+                    local size = Vector2.new(2000 / screenPos.Z, 2000 / screenPos.Z)
+                    local healthPercent = math.clamp(humanoid.Health / humanoid.MaxHealth, 0, 1)
+                    box.Size = size
+                    box.Position = Vector2.new(screenPos.X - size.X / 2, screenPos.Y - size.Y / 2)
+                    box.Color = esp_team_check and (isTeammate and team_color or box_color)
+                    box.Visible = true
+                    nameLabel.Text = player.Name
+                    nameLabel.Position = Vector2.new(screenPos.X, screenPos.Y - size.Y / 2 - 20)
+                    nameLabel.Color = esp_team_check and (isTeammate and team_color or name_color)
+                    nameLabel.Visible = true
+                    hpBar.Size = Vector2.new(5, size.Y * healthPercent)
+                    hpBar.Position = Vector2.new(box.Position.X - 6, box.Position.Y + size.Y * (1 - healthPercent))
+                    hpBar.Color = esp_team_check and (isTeammate and team_color or hp_color)
+                    hpBar.Visible = true
+                else
+                    box.Visible = false
+                    nameLabel.Visible = false
+                    hpBar.Visible = false
+                end
+            end
+        end
+    end
+end)
+
+-- Aimbot Logic with delta time
+RunService.RenderStepped:Connect(function(deltaTime)
+    Camera = getCamera()
+    if fovCircle and show_fov_circle and (aimbot_enabled or silent_aim_enabled) then
+        local mousePos = UserInputService:GetMouseLocation()
+        fovCircle.Position = Vector2.new(mousePos.X, mousePos.Y)
+        fovCircle.Radius = math.max(aimbot_enabled and aimbot_fov_size or 0, silent_aim_enabled and silent_aim_fov or 0)
+        fovCircle.Visible = true
+    elseif fovCircle then
+        fovCircle.Visible = false
+    end
+
+    if not (aimbot_enabled and aimbot_held) or not Camera or not LocalCharacter then return end
+    local closest_player, shortest_distance = nil, aimbot_fov_size
+    local mousePos = UserInputService:GetMouseLocation()
+    local localRootPart = LocalCharacter:FindFirstChild("HumanoidRootPart")
+    if not localRootPart then return end
+
+    for _, player in ipairs(Players:GetPlayers()) do
+        if player ~= LocalPlayer and player.Character then
+            local rootPart = player.Character:FindFirstChild("HumanoidRootPart")
+            if rootPart then
+                local distance = getDistance(Camera.CFrame.Position, rootPart.Position)
+                if distance > aimbot_max_distance then continue end
+                local part = getValidAimPart(player.Character, aimbot_aim_part)
+                if part then
+                    local screen_pos, on_screen = Camera:WorldToViewportPoint(part.Position)
+                    if on_screen then
+                        if aimbot_team_check and areOnSameTeam(LocalPlayer, player) then continue end
+                        if aimbot_visible_check and not isVisible(Camera.CFrame.Position, part.Position, player.Character) then continue end
+                        local target_distance = (aimbot_target_method == "Distance" and distance) or (Vector2.new(screen_pos.X, screen_pos.Y) - Vector2.new(mousePos.X, mousePos.Y)).Magnitude
+                        if target_distance < shortest_distance then
+                            shortest_distance = target_distance
+                            closest_player = player
+                        end
+                    end
+                end
+            end
+        end
+    end
+
+    if closest_player and closest_player.Character then
+        local part = getValidAimPart(closest_player.Character, aimbot_aim_part)
+        if part then
+            local screen_pos = Camera:WorldToViewportPoint(part.Position)
+            local move_vector = (Vector2.new(screen_pos.X, screen_pos.Y) - Vector2.new(mousePos.X, mousePos.Y)) / (aimbot_smoothness * deltaTime)
+            -- Mobile executors may not support mousemoverel; adjust manually if needed
+            -- Placeholder for mobile touch input adjustment
+        end
+    end
+end)
+
+-- Silent Aim Logic
+local utility = require(ReplicatedStorage.Modules.Utility)
+local oldRaycast = utility.Raycast
+utility.Raycast = function(...)
+    local args = {...}
+    if #args > 0 and args[4] == 999 and silent_aim_enabled and silent_aim_held then
+        local random_chance = math.random(0, 100)
+        if random_chance <= silent_aim_hit_chance then
+            local closest = get_closest_player(silent_aim_part, silent_aim_fov)
+            if closest and closest.Character then
+                local part = getValidAimPart(closest.Character, silent_aim_part)
+                if part then args[3] = part.Position end
+            end
+        end
+    end
+    return oldRaycast(unpack(args))
+end
+
+local function get_closest_player(partName, fov)
+    local closest, closest_distance = nil, fov
+    local character = LocalPlayer.Character
+    if not character then return nil end
+    local localRootPart = character:FindFirstChild("HumanoidRootPart")
+    if not localRootPart then return nil end
+
+    for _, player in ipairs(Players:GetPlayers()) do
+        if player == LocalPlayer then continue end
+        if player.Character then
+            local part = getValidAimPart(player.Character, partName)
+            if part then
+                local distance = getDistance(Camera.CFrame.Position, part.Position)
+                if distance > silent_aim_max_distance then continue end
+                local position, on_screen = Camera:WorldToViewportPoint(part.Position)
+                if on_screen then
+                    if silent_aim_team_check and areOnSameTeam(LocalPlayer, player) then continue end
+                    if silent_aim_visible_check and not isVisible(Camera.CFrame.Position, part.Position, player.Character) then continue end
+                    local target_distance = (silent_aim_target_method == "Distance" and distance) or (Vector2.new(Camera.ViewportSize.X / 2, Camera.ViewportSize.Y / 2) - Vector2.new(position.X, position.Y)).Magnitude
+                    if target_distance < closest_distance then
+                        closest = player
+                        closest_distance = target_distance
+                    end
+                end
+            end
+        end
+    end
+    return closest
+end
