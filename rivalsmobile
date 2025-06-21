@@ -1,10 +1,10 @@
--- Safe Orion load
-local success, Orion = pcall(function()
-    return loadstring(game:HttpGet("https://raw.githubusercontent.com/shlexware/Orion/main/source"))()
+-- Safe Rayfield load
+local success, Rayfield = pcall(function()
+    return loadstring(game:HttpGet("https://sirius.menu/rayfield"))()
 end)
 
-if not success or not Orion then
-    warn("Orion failed to load.")
+if not success or not Rayfield or not Rayfield.CreateWindow then
+    warn("Rayfield failed to load.")
     return
 end
 
@@ -202,8 +202,8 @@ end
 
 createFOVCircle()
 
--- Create Orion window
-local Window = Orion:MakeWindow({
+-- Create Rayfield window
+local Window = Rayfield:CreateWindow({
     Name = "KLAR Rivals",
     LoadingTitle = "KLAR Rivals",
     LoadingSubtitle = "By Vxibility",
@@ -212,87 +212,76 @@ local Window = Orion:MakeWindow({
 })
 
 -- Create tabs
-local ESPTab = Window:MakeTab({
-    Name = "ESP",
-    Icon = "rbxassetid://4483362458",
-    PremiumOnly = false
-})
-
-local AimbotTab = Window:MakeTab({
-    Name = "Aimbot",
-    Icon = "rbxassetid://4483362300",
-    PremiumOnly = false
-})
-
-local SilentAimTab = Window:MakeTab({
-    Name = "Silent Aim",
-    Icon = "rbxassetid://4483362300",
-    PremiumOnly = false
-})
-
-local ConfigTab = Window:MakeTab({
-    Name = "Config",
-    Icon = "rbxassetid://4483362458",
-    PremiumOnly = false
-})
+local ESPTab = Window:CreateTab("ESP", 4483362458)
+local AimbotTab = Window:CreateTab("Aimbot", 4483362300)
+local SilentAimTab = Window:CreateTab("Silent Aim", 4483362300)
+local ConfigTab = Window:CreateTab("Config", 4483362458)
 
 -- ESP Tab elements
-ESPTab:AddSection("ESP Controls")
+ESPTab:CreateSection("ESP Controls")
 
-ESPTab:AddToggle("Enable ESP", {
-    Default = true,
+ESPTab:CreateToggle({
+    Name = "Enable ESP",
+    CurrentValue = true,
     Callback = function(val)
         esp_enabled = val
     end
 })
 
-ESPTab:AddColorPicker("Box Color", {
-    Default = box_color,
+ESPTab:CreateColorPicker({
+    Name = "Box Color",
+    Color = box_color,
     Callback = function(color)
         box_color = color
     end
 })
 
-ESPTab:AddColorPicker("Name Color", {
-    Default = name_color,
+ESPTab:CreateColorPicker({
+    Name = "Name Color",
+    Color = name_color,
     Callback = function(color)
         name_color = color
     end
 })
 
-ESPTab:AddColorPicker("HP Bar Color", {
-    Default = hp_color,
+ESPTab:CreateColorPicker({
+    Name = "HP Bar Color",
+    Color = hp_color,
     Callback = function(color)
         hp_color = color
     end
 })
 
-ESPTab:AddColorPicker("Team Color", {
-    Default = team_color,
+ESPTab:CreateColorPicker({
+    Name = "Team Color",
+    Color = team_color,
     Callback = function(color)
         team_color = color
     end
 })
 
-ESPTab:AddSlider("Max Distance (studs)", {
-    Min = 100,
-    Max = 5000,
-    Default = esp_max_distance,
+ESPTab:CreateSlider({
+    Name = "Max Distance (studs)",
+    Range = {100, 5000},
+    Increment = 100,
+    CurrentValue = esp_max_distance,
     Callback = function(val)
         esp_max_distance = val
         warn("ESP max distance set to: " .. esp_max_distance .. " studs")
     end
 })
 
-ESPTab:AddToggle("Team Check", {
-    Default = true,
+ESPTab:CreateToggle({
+    Name = "Team Check",
+    CurrentValue = true,
     Callback = function(val)
         esp_team_check = val
     end
 })
 
-ESPTab:AddToggle("Visible Check", {
-    Default = false,
+ESPTab:CreateToggle({
+    Name = "Visible Check",
+    CurrentValue = false,
     Callback = function(val)
         esp_visible_check = val
     end
@@ -444,4 +433,516 @@ RunService.RenderStepped:Connect(function()
                     box.Visible = true
 
                     nameLabel.Text = player.Name
-                    nameLabel.Position
+                    nameLabel.Position = Vector2.new(screenPos.X, screenPos.Y - size.Y / 2 - 20)
+                    nameLabel.Color = esp_team_check and (isTeammate and team_color or name_color)
+                    nameLabel.Visible = true
+
+                    hpBar.Size = Vector2.new(5, size.Y * healthPercent)
+                    hpBar.Position = Vector2.new(box.Position.X - 6, box.Position.Y + size.Y * (1 - healthPercent))
+                    hpBar.Color = esp_team_check and (isTeammate and team_color or hp_color)
+                    hpBar.Visible = true
+                else
+                    box.Visible = false
+                    nameLabel.Visible = false
+                    hpBar.Visible = false
+                end
+            end
+        end
+    end
+end)
+
+-- Aimbot Tab
+AimbotTab:CreateSection("Aimbot Settings")
+
+AimbotTab:CreateToggle({
+    Name = "Enable Aimbot",
+    CurrentValue = false,
+    Callback = function(val)
+        aimbot_enabled = val
+    end
+})
+
+AimbotTab:CreateButton({
+    Name = "Set Aimbot Activation Key",
+    Callback = function()
+        Rayfield:Notify({
+            Title = "Aimbot Key",
+            Content = "Press MouseButton1, MouseButton2, or any key...",
+            Duration = 3
+        })
+        local connection
+        connection = UserInputService.InputBegan:Connect(function(input, processed)
+            if processed then return end
+            if input.UserInputType == Enum.UserInputType.MouseButton1 or input.UserInputType == Enum.UserInputType.MouseButton2 then
+                aimbot_key_code = input.UserInputType
+                aimbot_key_name = tostring(input.UserInputType.Name)
+            elseif input.UserInputType == Enum.UserInputType.Keyboard then
+                aimbot_key_code = input.KeyCode
+                aimbot_key_name = tostring(input.KeyCode.Name)
+            else return end
+            warn("Aimbot bound to: " .. aimbot_key_name)
+            Rayfield:Notify({
+                Title = "Key Set",
+                Content = aimbot_key_name .. " bound to Aimbot.",
+                Duration = 2
+            })
+            connection:Disconnect()
+        end)
+    end
+})
+
+AimbotTab:CreateDropdown({
+    Name = "Aim Part",
+    Options = {"Head", "UpperTorso", "LowerTorso", "HumanoidRootPart"},
+    CurrentOption = "Head",
+    Callback = function(opt)
+        aimbot_aim_part = tostring(opt)
+        warn("Aimbot aim part set to: " .. aimbot_aim_part)
+    end
+})
+
+AimbotTab:CreateDropdown({
+    Name = "Target Method",
+    Options = {"Distance", "Crosshair"},
+    CurrentOption = "Distance",
+    Callback = function(opt)
+        aimbot_target_method = tostring(opt)
+        warn("Aimbot target method set to: " .. aimbot_target_method)
+    end
+})
+
+AimbotTab:CreateSlider({
+    Name = "FOV Radius",
+    Range = {10, 300},
+    Increment = 1,
+    CurrentValue = aimbot_fov_size,
+    Callback = function(val)
+        aimbot_fov_size = val
+        if fovCircle then fovCircle.Radius = math.max(val, silent_aim_fov) end
+    end
+})
+
+AimbotTab:CreateSlider({
+    Name = "Smoothness",
+    Range = {1, 10},
+    Increment = 1,
+    CurrentValue = aimbot_smoothness,
+    Callback = function(val)
+        aimbot_smoothness = val
+    end
+})
+
+AimbotTab:CreateSlider({
+    Name = "Max Distance (studs)",
+    Range = {100, 5000},
+    Increment = 100,
+    CurrentValue = aimbot_max_distance,
+    Callback = function(val)
+        aimbot_max_distance = val
+        warn("Aimbot max distance set to: " .. aimbot_max_distance .. " studs")
+    end
+})
+
+AimbotTab:CreateToggle({
+    Name = "Team Check",
+    CurrentValue = true,
+    Callback = function(val)
+        aimbot_team_check = val
+    end
+})
+
+AimbotTab:CreateToggle({
+    Name = "Visible Check",
+    CurrentValue = false,
+    Callback = function(val)
+        aimbot_visible_check = val
+    end
+})
+
+AimbotTab:CreateToggle({
+    Name = "Show FOV Circle",
+    CurrentValue = true,
+    Callback = function(val)
+        show_fov_circle = val
+        if fovCircle then fovCircle.Visible = val and (aimbot_enabled or silent_aim_enabled) end
+    end
+})
+
+-- Silent Aim Tab
+SilentAimTab:CreateSection("Silent Aim")
+SilentAimTab:CreateToggle({
+    Name = "Enable Silent Aim",
+    CurrentValue = false,
+    Callback = function(val)
+        silent_aim_enabled = val
+    end
+})
+
+SilentAimTab:CreateButton({
+    Name = "Set Silent Aim Activation Key",
+    Callback = function()
+        Rayfield:Notify({
+            Title = "Silent Aim Key",
+            Content = "Press MouseButton1, MouseButton2, or any key...",
+            Duration = 3
+        })
+        local connection
+        connection = UserInputService.InputBegan:Connect(function(input, processed)
+            if processed then return end
+            if input.UserInputType == Enum.UserInputType.MouseButton1 or input.UserInputType == Enum.UserInputType.MouseButton2 then
+                silent_aim_key_code = input.UserInputType
+                silent_aim_key_name = tostring(input.UserInputType.Name)
+            elseif input.UserInputType == Enum.UserInputType.Keyboard then
+                silent_aim_key_code = input.KeyCode
+                silent_aim_key_name = tostring(input.KeyCode.Name)
+            else return end
+            warn("Silent Aim bound to: " .. silent_aim_key_name)
+            Rayfield:Notify({
+                Title = "Key Set",
+                Content = silent_aim_key_name .. " bound to Silent Aim.",
+                Duration = 2
+            })
+            connection:Disconnect()
+        end)
+    end
+})
+
+SilentAimTab:CreateDropdown({
+    Name = "Silent Aim Part",
+    Options = {"Head", "UpperTorso", "LowerTorso", "HumanoidRootPart"},
+    CurrentOption = "Head",
+    Callback = function(opt)
+        silent_aim_part = tostring(opt)
+        warn("Silent aim part set to: " .. silent_aim_part)
+    end
+})
+
+SilentAimTab:CreateDropdown({
+    Name = "Target Method",
+    Options = {"Distance", "Crosshair"},
+    CurrentOption = "Distance",
+    Callback = function(opt)
+        silent_aim_target_method = tostring(opt)
+        warn("Silent aim target method set to: " .. silent_aim_target_method)
+    end
+})
+
+SilentAimTab:CreateSlider({
+    Name = "Silent Aim FOV",
+    Range = {10, 300},
+    Increment = 1,
+    CurrentValue = silent_aim_fov,
+    Callback = function(val)
+        silent_aim_fov = val
+        if fovCircle then fovCircle.Radius = math.max(val, aimbot_fov_size) end
+    end
+})
+
+SilentAimTab:CreateSlider({
+    Name = "Hit Chance (%)",
+    Range = {0, 100},
+    Increment = 1,
+    CurrentValue = silent_aim_hit_chance,
+    Callback = function(val)
+        silent_aim_hit_chance = val
+        warn("Silent aim hit chance set to: " .. silent_aim_hit_chance .. "%")
+    end
+})
+
+SilentAimTab:CreateSlider({
+    Name = "Max Distance (studs)",
+    Range = {100, 5000},
+    Increment = 100,
+    CurrentValue = silent_aim_max_distance,
+    Callback = function(val)
+        silent_aim_max_distance = val
+        warn("Silent aim max distance set to: " .. silent_aim_max_distance .. " studs")
+    end
+})
+
+SilentAimTab:CreateToggle({
+    Name = "Team Check",
+    CurrentValue = true,
+    Callback = function(val)
+        silent_aim_team_check = val
+    end
+})
+
+SilentAimTab:CreateToggle({
+    Name = "Visible Check",
+    CurrentValue = false,
+    Callback = function(val)
+        silent_aim_visible_check = val
+    end
+})
+
+SilentAimTab:CreateToggle({
+    Name = "Show FOV Circle",
+    CurrentValue = true,
+    Callback = function(val)
+        show_fov_circle = val
+        if fovCircle then fovCircle.Visible = val and (aimbot_enabled or silent_aim_enabled) end
+    end
+})
+
+-- Combined Input Handling
+UserInputService.InputBegan:Connect(function(input, processed)
+    if processed then return end
+    warn("Input received: " .. tostring(input.UserInputType) .. ", Code: " .. tostring(input.KeyCode))
+    if aimbot_key_code == input.UserInputType or (input.UserInputType == Enum.UserInputType.Keyboard and aimbot_key_code == input.KeyCode) then
+        aimbot_held = true
+        warn("Aimbot held: true, Key: " .. tostring(aimbot_key_name))
+    end
+    if silent_aim_key_code == input.UserInputType or (input.UserInputType == Enum.UserInputType.Keyboard and silent_aim_key_code == input.KeyCode) then
+        silent_aim_held = true
+        warn("Silent Aim held: true, Key: " .. tostring(silent_aim_key_name))
+    end
+end)
+
+UserInputService.InputEnded:Connect(function(input)
+    if aimbot_key_code == input.UserInputType or (input.UserInputType == Enum.UserInputType.Keyboard and aimbot_key_code == input.KeyCode) then
+        aimbot_held = false
+        warn("Aimbot held: false, Key: " .. tostring(aimbot_key_name))
+    end
+    if silent_aim_key_code == input.UserInputType or (input.UserInputType == Enum.UserInputType.Keyboard and silent_aim_key_code == input.KeyCode) then
+        silent_aim_held = false
+        warn("Silent Aim held: false, Key: " .. tostring(silent_aim_key_name))
+    end
+end)
+
+-- Aimbot Logic
+RunService.RenderStepped:Connect(function()
+    Camera = getCamera()
+    if fovCircle and show_fov_circle and (aimbot_enabled or silent_aim_enabled) then
+        local mousePos = UserInputService:GetMouseLocation()
+        fovCircle.Position = Vector2.new(mousePos.X, mousePos.Y)
+        fovCircle.Radius = math.max(aimbot_enabled and aimbot_fov_size or 0, silent_aim_enabled and silent_aim_fov or 0)
+        fovCircle.Visible = true
+    elseif fovCircle then
+        fovCircle.Visible = false
+    end
+
+    if not (aimbot_enabled and aimbot_held) or not Camera or not LocalCharacter then return end
+
+    local closest_player, shortest_distance = nil, aimbot_fov_size
+    local mousePos = UserInputService:GetMouseLocation()
+    local localRootPart = LocalCharacter:FindFirstChild("HumanoidRootPart")
+    local localTeam = LocalPlayer.Team
+    local localTeamName = localTeam and localTeam.Name or nil
+    local localTeamColor = localTeam and localTeam.TeamColor or nil
+    local localTeamAttribute = LocalPlayer:GetAttribute("Team") or (LocalPlayer:FindFirstChild("Leaderstats") and LocalPlayer.Leaderstats:FindFirstChild("Team") and LocalPlayer.Leaderstats.Team.Value) or nil
+    if not localRootPart then
+        warn("No localRootPart found for Aimbot")
+        return
+    end
+
+    for _, player in ipairs(Players:GetPlayers()) do
+        if player ~= LocalPlayer and player.Character then
+            local rootPart = player.Character:FindFirstChild("HumanoidRootPart")
+            local playerTeam = player.Team
+            local playerTeamName = playerTeam and playerTeam.Name or nil
+            local playerTeamColor = playerTeam and playerTeam.TeamColor or nil
+            local playerTeamAttribute = player:GetAttribute("Team") or (player:FindFirstChild("Leaderstats") and player.Leaderstats:FindFirstChild("Team") and player.Leaderstats.Team.Value) or nil
+            if rootPart then
+                local distance = getDistance(Camera.CFrame.Position, rootPart.Position)
+                if distance > aimbot_max_distance then continue end
+
+                local part = getValidAimPart(player.Character, aimbot_aim_part)
+                if part then
+                    local screen_pos, on_screen = Camera:WorldToViewportPoint(part.Position)
+                    if on_screen then
+                        if aimbot_team_check and localTeam and playerTeam then
+                            if (localTeamName and playerTeamName and localTeamName == playerTeamName) or
+                               (localTeamColor and playerTeamColor and localTeamColor == playerTeamColor) or
+                               (localTeamAttribute and playerTeamAttribute and localTeamAttribute == playerTeamAttribute) then
+                                warn("Aimbot skipped: " .. player.Name .. " is teammate (match found)")
+                                continue
+                            end
+                        end
+                        if aimbot_visible_check and not isVisible(Camera.CFrame.Position, part.Position, player.Character) then continue end
+
+                        local target_distance
+                        if aimbot_target_method == "Distance" then
+                            target_distance = distance
+                        else
+                            target_distance = (Vector2.new(screen_pos.X, screen_pos.Y) - Vector2.new(mousePos.X, mousePos.Y)).Magnitude
+                        end
+                        if target_distance < shortest_distance then
+                            shortest_distance = target_distance
+                            closest_player = player
+                        end
+                    end
+                end
+            end
+        end
+    end
+
+    if closest_player and closest_player.Character then
+        local part = getValidAimPart(closest_player.Character, aimbot_aim_part)
+        if part then
+            local screen_pos = Camera:WorldToViewportPoint(part.Position)
+            local move_vector = (Vector2.new(screen_pos.X, screen_pos.Y) - Vector2.new(mousePos.X, mousePos.Y)) / aimbot_smoothness
+            mousemoverel(move_vector.X, move_vector.Y)
+        end
+    end
+end)
+
+-- Silent Aim Logic
+local utility = require(ReplicatedStorage.Modules.Utility)
+
+local function get_closest_player(partName, fov)
+    local closest, closest_distance = nil, fov
+    local character = LocalPlayer.Character
+    if not character then
+        warn("Local player character not found")
+        return nil
+    end
+    local localRootPart = character:FindFirstChild("HumanoidRootPart")
+    local localTeam = LocalPlayer.Team
+    local localTeamName = localTeam and localTeam.Name or nil
+    local localTeamColor = localTeam and localTeam.TeamColor or nil
+    local localTeamAttribute = LocalPlayer:GetAttribute("Team") or (LocalPlayer:FindFirstChild("Leaderstats") and LocalPlayer.Leaderstats:FindFirstChild("Team") and LocalPlayer.Leaderstats.Team.Value) or nil
+    if not localRootPart then return nil end
+
+    for _, player in ipairs(Players:GetPlayers()) do
+        if player == LocalPlayer then continue end
+        if player.Character then
+            local part = getValidAimPart(player.Character, partName)
+            if part then
+                local distance = getDistance(Camera.CFrame.Position, part.Position)
+                if distance > silent_aim_max_distance then continue end
+
+                local position, on_screen = Camera:WorldToViewportPoint(part.Position)
+                if on_screen then
+                    local playerTeam = player.Team
+                    local playerTeamName = playerTeam and playerTeam.Name or nil
+                    local playerTeamColor = playerTeam and playerTeam.TeamColor or nil
+                    local playerTeamAttribute = player:GetAttribute("Team") or (player:FindFirstChild("Leaderstats") and player.Leaderstats:FindFirstChild("Team") and player.Leaderstats.Team.Value) or nil
+                    if silent_aim_team_check and localTeam and playerTeam then
+                        if (localTeamName and playerTeamName and localTeamName == playerTeamName) or
+                           (localTeamColor and playerTeamColor and localTeamColor == playerTeamColor) or
+                           (localTeamAttribute and playerTeamAttribute and localTeamAttribute == playerTeamAttribute) then
+                            warn("Silent Aim skipped: " .. player.Name .. " is teammate (match found)")
+                            continue
+                        end
+                    end
+                    if silent_aim_visible_check and not isVisible(Camera.CFrame.Position, part.Position, player.Character) then continue end
+
+                    local target_distance
+                    if silent_aim_target_method == "Distance" then
+                        target_distance = distance
+                    else
+                        local center = Vector2.new(Camera.ViewportSize.X / 2, Camera.ViewportSize.Y / 2)
+                        target_distance = (center - Vector2.new(position.X, position.Y)).Magnitude
+                    end
+                    if target_distance < closest_distance then
+                        closest = player
+                        closest_distance = target_distance
+                    end
+                end
+            end
+        end
+    end
+    return closest
+end
+
+local oldRaycast = utility.Raycast
+utility.Raycast = function(...)
+    local args = {...}
+    if #args > 0 and args[4] == 999 and silent_aim_enabled and silent_aim_held then
+        local random_chance = math.random(0, 100)
+        if random_chance <= silent_aim_hit_chance then
+            local closest = get_closest_player(silent_aim_part, silent_aim_fov)
+            if closest and closest.Character then
+                local part = getValidAimPart(closest.Character, silent_aim_part)
+                if part then args[3] = part.Position end
+            end
+        end
+    end
+    return oldRaycast(unpack(args))
+end
+
+-- Update FOV circle
+RunService.RenderStepped:Connect(function()
+    Camera = getCamera()
+    if fovCircle and show_fov_circle and (aimbot_enabled or silent_aim_enabled) then
+        local mousePos = UserInputService:GetMouseLocation()
+        fovCircle.Position = Vector2.new(mousePos.X, mousePos.Y)
+        fovCircle.Radius = math.max(aimbot_enabled and aimbot_fov_size or 0, silent_aim_enabled and silent_aim_fov or 0)
+        fovCircle.Visible = true
+    elseif fovCircle then
+        fovCircle.Visible = false
+    end
+end)
+
+-- Config Tab
+local configName = ""
+ConfigTab:CreateSection("Save/Load Config")
+
+ConfigTab:CreateInput({
+    Name = "Config Name",
+    PlaceholderText = "Enter config name",
+    RemoveTextAfterFocusLost = false,
+    Callback = function(text)
+        configName = text
+    end
+})
+
+ConfigTab:CreateButton({
+    Name = "Save Config",
+    Callback = function()
+        if configName == "" then return end
+        local config = HttpService:JSONEncode({
+            esp_enabled = esp_enabled, box_color = box_color, name_color = name_color, hp_color = hp_color,
+            team_color = team_color, aimbot_enabled = aimbot_enabled, aimbot_key_name = aimbot_key_name,
+            aimbot_aim_part = aimbot_aim_part, aimbot_fov_size = aimbot_fov_size, aimbot_smoothness = aimbot_smoothness,
+            show_fov_circle = show_fov_circle, silent_aim_enabled = silent_aim_enabled, silent_aim_key_name = silent_aim_key_name,
+            silent_aim_part = silent_aim_part, silent_aim_hit_chance = silent_aim_hit_chance, silent_aim_max_distance = silent_aim_max_distance,
+            aimbot_max_distance = aimbot_max_distance, esp_max_distance = esp_max_distance, aimbot_target_method = aimbot_target_method,
+            silent_aim_target_method = silent_aim_target_method, esp_team_check = esp_team_check, aimbot_team_check = aimbot_team_check,
+            silent_aim_team_check = silent_aim_team_check, esp_visible_check = esp_visible_check, aimbot_visible_check = aimbot_visible_check,
+            silent_aim_visible_check = silent_aim_visible_check
+        })
+        writefile(configName .. ".json", config)
+    end
+})
+
+ConfigTab:CreateButton({
+    Name = "Load Config",
+    Callback = function()
+        if configName == "" or not isfile(configName .. ".json") then return end
+        local config = HttpService:JSONDecode(readfile(configName .. ".json"))
+        esp_enabled = config.esp_enabled
+        box_color = config.box_color
+        name_color = config.name_color
+        hp_color = config.hp_color
+        team_color = config.team_color or Color3.fromRGB(0, 0, 255)
+        aimbot_enabled = config.aimbot_enabled
+        aimbot_key_name = config.aimbot_key_name
+        aimbot_aim_part = config.aimbot_aim_part
+        aimbot_fov_size = config.aimbot_fov_size
+        aimbot_smoothness = config.aimbot_smoothness
+        show_fov_circle = config.show_fov_circle
+        silent_aim_enabled = config.silent_aim_enabled
+        silent_aim_key_name = config.silent_aim_key_name or "MouseButton1"
+        silent_aim_part = config.silent_aim_part
+        silent_aim_hit_chance = config.silent_aim_hit_chance or 100
+        silent_aim_max_distance = config.silent_aim_max_distance or 1000
+        aimbot_max_distance = config.aimbot_max_distance or 1000
+        esp_max_distance = config.esp_max_distance or 1000
+        aimbot_target_method = config.aimbot_target_method or "Distance"
+        silent_aim_target_method = config.silent_aim_target_method or "Distance"
+        esp_team_check = config.esp_team_check or true
+        aimbot_team_check = config.aimbot_team_check or true
+        silent_aim_team_check = config.silent_aim_team_check or true
+        esp_visible_check = config.esp_visible_check or false
+        aimbot_visible_check = config.aimbot_visible_check or false
+        silent_aim_visible_check = config.silent_aim_visible_check or false
+
+        for player, elements in pairs(espElements) do
+            elements[1].Color = box_color
+            elements[2].Color = name_color
+            elements[3].Color = hp_color
+        end
+    end
+})
